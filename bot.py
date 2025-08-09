@@ -1,13 +1,13 @@
-# bot.py
 import os
 import logging
-import threading
-from flask import Flask
+import signal
+import time
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
-    filters
+    filters,
+    ContextTypes
 )
 from storage import save_connection, get_connection
 
@@ -23,14 +23,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Create Flask app
-app = Flask(__name__)
-
 # Initialize Telegram application
 application = Application.builder().token(TOKEN).build()
 
+# Signal handler for graceful shutdown
+def signal_handler(signum, frame):
+    logger.info("Shutting down gracefully...")
+    application.stop()
+    logger.info("Bot stopped")
+    exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+
 # Command handlers
-async def connect_command(update, context):
+async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /connect command - only in private chats"""
     if update.message.chat.type != "private":
         return
     
@@ -51,7 +59,8 @@ async def connect_command(update, context):
     except ValueError:
         await update.message.reply_text("Invalid group ID. Must be an integer.")
 
-async def handle_message(update, context):
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Forward messages to connected group - only in private chats"""
     if update.message.chat.type != "private":
         return
     
@@ -81,7 +90,8 @@ async def handle_message(update, context):
             "4. Try reconnecting with /connect"
         )
 
-async def start(update, context):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send welcome message - only in private chats"""
     if update.message.chat.type != "private":
         return
     
@@ -91,29 +101,18 @@ async def start(update, context):
         "⚠️ Note: I only respond to commands in private messages, not in groups."
     )
 
-# Register handlers
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("connect", connect_command))
-application.add_handler(MessageHandler(
-    filters.TEXT | filters.PHOTO | filters.Document.ALL | filters.AUDIO | filters.VIDEO,
-    handle_message
-))
-
-# Start polling in a separate thread
-def start_polling():
+def main():
+    """Start the bot"""
+    # Register handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("connect", connect_command))
+    application.add_handler(MessageHandler(
+        filters.TEXT | filters.PHOTO | filters.Document.ALL | filters.AUDIO | filters.VIDEO,
+        handle_message
+    ))
+    
+    logger.info("Starting bot in polling mode...")
     application.run_polling()
 
-polling_thread = threading.Thread(target=start_polling)
-polling_thread.daemon = True
-polling_thread.start()
-
-# Health check route
-@app.route('/')
-def health_check():
-    return "🤖 Bot is running! I only respond to private messages.", 200
-
-# Start Flask server
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 5000))
-    logger.info(f"Starting bot with polling on port {port}")
-    app.run(host="0.0.0.0", port=port)
+    main()
