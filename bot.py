@@ -2,6 +2,7 @@ import os
 import logging
 import signal
 import time
+from telegram import Update
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -112,6 +113,7 @@ def main():
     ))
     
     logger.info("Starting bot in polling mode...")
+    logger.info(f"Using token: {TOKEN[:10]}...")  # Log partial token for security
     application.run_polling()
 
 if __name__ == "__main__":
