@@ -1,3 +1,4 @@
+# bot.py
 import os
 import logging
 from telegram import Update
@@ -32,6 +33,7 @@ async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     try:
+        # Ensure group ID is properly formatted
         group_id = int(args[0])
         save_connection(user_id, group_id)
         await update.message.reply_text(
@@ -54,15 +56,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     try:
-        # Forward message to the connected group
-        await update.message.copy_to(chat_id=group_id)
+        # Create a copy instead of forward to preserve formatting
+        await context.bot.copy_message(
+            chat_id=group_id,
+            from_chat_id=update.message.chat_id,
+            message_id=update.message.message_id
+        )
     except Exception as e:
         logger.error(f"Forwarding failed: {e}")
         await update.message.reply_text(
             "❌ Failed to send message. Make sure:\n"
             "1. I'm added to the group\n"
-            "2. The group ID is correct\n"
-            "3. Try reconnecting with /connect"
+            "2. The group ID is correct (use negative ID for supergroups)\n"
+            "3. I have 'Send Messages' permission\n"
+            "4. Try reconnecting with /connect"
         )
 
 def main():
@@ -74,7 +81,7 @@ def main():
     
     # Message handler (all non-command messages)
     application.add_handler(MessageHandler(
-        filters.TEXT | filters.PHOTO | filters.Document.ALL,
+        filters.TEXT | filters.PHOTO | filters.Document.ALL | filters.AUDIO | filters.VIDEO,
         handle_message
     ))
     
