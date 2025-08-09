@@ -2,14 +2,13 @@
 import os
 import logging
 from flask import Flask, request
-from telegram import Update, Bot
+from telegram import Update
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
     filters,
-    ContextTypes,
-    CallbackContext
+    ContextTypes
 )
 from storage import save_connection, get_connection
 
@@ -33,7 +32,11 @@ application = Application.builder().token(TOKEN).build()
 
 # Command handlers
 async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /connect command"""
+    """Handle /connect command - only in private chats"""
+    # Only allow in private chats
+    if update.message.chat.type != "private":
+        return
+    
     user_id = update.message.from_user.id
     args = context.args
     
@@ -46,13 +49,17 @@ async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         save_connection(user_id, group_id)
         await update.message.reply_text(
             f"✅ Connected to group {group_id}!\n"
-            "Send any message to me and I'll forward it there."
+            "Send any message to me (in private) and I'll forward it there."
         )
     except ValueError:
         await update.message.reply_text("Invalid group ID. Must be an integer.")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Forward messages to connected group"""
+    """Forward messages to connected group - only in private chats"""
+    # Only handle messages in private chats
+    if update.message.chat.type != "private":
+        return
+    
     user_id = update.message.from_user.id
     group_id = get_connection(user_id)
     
@@ -80,10 +87,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send welcome message"""
+    """Send welcome message - only in private chats"""
+    # Only respond in private chats
+    if update.message.chat.type != "private":
+        return
+    
     await update.message.reply_text(
         "🤖 Forward Bot is running!\n"
-        "Use /connect <group_id> to start forwarding messages"
+        "Use /connect <group_id> in private chat to start forwarding messages\n\n"
+        "⚠️ Note: I only respond to commands in private messages, not in groups."
     )
 
 # Register handlers
@@ -94,29 +106,31 @@ application.add_handler(MessageHandler(
     handle_message
 ))
 
-# Initialize bot
-@app.before_first_request
-async def initialize_bot():
-    """Set up webhook on first request"""
-    webhook_url = f"https://{app.config['DOMAIN']}/{TOKEN}"
-    await application.bot.set_webhook(webhook_url)
-    logger.info(f"Webhook set to: {webhook_url}")
-
 # Webhook route
 @app.post(f"/{TOKEN}")
 async def telegram_webhook():
     """Handle incoming Telegram updates"""
-    update = Update.de_json(await request.get_json(), application.bot)
-    await application.update_queue.put(update)
+    json_data = await request.get_json()
+    update = Update.de_json(json_data, application.bot)
+    await application.process_update(update)
     return {"status": "ok"}
 
 # Health check route
 @app.route("/")
 def health_check():
-    return "🤖 Bot is running!", 200
+    return "🤖 Bot is running! I only respond to private messages.", 200
 
 # Start Flask server
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
-    app.config['DOMAIN'] = os.getenv("RENDER_EXTERNAL_URL", f"localhost:{port}")
+    webhook_url = os.getenv("WEBHOOK_URL")
+    
+    if webhook_url:
+        # Set webhook on startup
+        async def set_webhook():
+            await application.bot.set_webhook(f"{webhook_url}/{TOKEN}")
+        
+        application.run(set_webhook())
+        logger.info(f"Webhook set to: {webhook_url}/{TOKEN}")
+    
     app.run(host="0.0.0.0", port=port)
