@@ -2,15 +2,12 @@
 import os
 import logging
 import threading
-from flask import Flask, request
-from telegram import Update
+from flask import Flask
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
-    filters,
-    ContextTypes,
-    Dispatcher
+    filters
 )
 from storage import save_connection, get_connection
 
@@ -31,11 +28,9 @@ app = Flask(__name__)
 
 # Initialize Telegram application
 application = Application.builder().token(TOKEN).build()
-dispatcher = application.dispatcher
 
 # Command handlers
-async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /connect command - only in private chats"""
+async def connect_command(update, context):
     if update.message.chat.type != "private":
         return
     
@@ -56,8 +51,7 @@ async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except ValueError:
         await update.message.reply_text("Invalid group ID. Must be an integer.")
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Forward messages to connected group - only in private chats"""
+async def handle_message(update, context):
     if update.message.chat.type != "private":
         return
     
@@ -87,8 +81,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "4. Try reconnecting with /connect"
         )
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send welcome message - only in private chats"""
+async def start(update, context):
     if update.message.chat.type != "private":
         return
     
@@ -117,7 +110,7 @@ polling_thread.start()
 # Health check route
 @app.route('/')
 def health_check():
-    return "🤖 Bot is running with polling! I only respond to private messages.", 200
+    return "🤖 Bot is running! I only respond to private messages.", 200
 
 # Start Flask server
 if __name__ == "__main__":
