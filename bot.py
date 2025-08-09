@@ -116,14 +116,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("connect", connect_command))
 
-# Update MessageHandler to include stickers and all supported media types
+# CORRECTED FILTER FOR STICKERS: Use filters.Sticker instead of filters.STICKER
 application.add_handler(MessageHandler(
     filters.TEXT | 
     filters.PHOTO | 
     filters.Document.ALL | 
     filters.AUDIO | 
     filters.VIDEO |
-    filters.STICKER |
+    filters.Sticker |  # Corrected filter name
     filters.VOICE |
     filters.ANIMATION,
     handle_message
