@@ -1,6 +1,7 @@
 # bot.py
 import os
 import logging
+import asyncio
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -18,6 +19,8 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 if not TOKEN:
     raise ValueError("Missing TOKEN environment variable")
+if not WEBHOOK_URL:
+    raise ValueError("Missing WEBHOOK_URL environment variable")
 
 # Enable logging
 logging.basicConfig(
@@ -90,8 +93,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "⚠️ Note: I only respond to commands in private messages, not in groups."
     )
 
+async def set_webhook():
+    """Set up webhook on startup"""
+    await application.bot.set_webhook(f"{WEBHOOK_URL}/{TOKEN}")
+    logger.info(f"Webhook set to: {WEBHOOK_URL}/{TOKEN}")
+
 def main():
     """Start the bot"""
+    global application
     application = Application.builder().token(TOKEN).build()
     
     # Register handlers
@@ -102,18 +111,20 @@ def main():
         handle_message
     ))
     
-    # Webhook configuration for Render
-    if WEBHOOK_URL:
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            webhook_url=f"{WEBHOOK_URL}/{TOKEN}",
-            allowed_updates=Update.ALL_TYPES
-        )
-        logger.info(f"Running in WEBHOOK mode at {WEBHOOK_URL}/{TOKEN}")
-    else:
-        application.run_polling()
-        logger.info("Running in POLLING mode")
+    # Set up webhook
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(set_webhook())
+    
+    # Start web server
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url=None,  # We already set it above
+        secret_token=None,
+        key=None,
+        cert=None,
+        drop_pending_updates=True
+    )
 
 if __name__ == "__main__":
     main()
