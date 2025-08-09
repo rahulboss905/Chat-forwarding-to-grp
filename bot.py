@@ -1,4 +1,3 @@
-# bot.py
 import os
 import logging
 from telegram import Update
@@ -13,6 +12,9 @@ from storage import save_connection, get_connection
 
 # Configuration
 TOKEN = os.getenv("TOKEN")
+PORT = int(os.getenv("PORT", 10000))
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Render provides this automatically
+
 if not TOKEN:
     raise ValueError("Missing TOKEN environment variable")
 
@@ -33,7 +35,6 @@ async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     try:
-        # Ensure group ID is properly formatted
         group_id = int(args[0])
         save_connection(user_id, group_id)
         await update.message.reply_text(
@@ -56,7 +57,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     try:
-        # Create a copy instead of forward to preserve formatting
         await context.bot.copy_message(
             chat_id=group_id,
             from_chat_id=update.message.chat_id,
@@ -72,20 +72,38 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "4. Try reconnecting with /connect"
         )
 
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send welcome message"""
+    await update.message.reply_text(
+        "🤖 Forward Bot is running!\n"
+        "Use /connect <group_id> to start forwarding messages"
+    )
+
 def main():
-    """Start the bot"""
+    """Start the bot in webhook mode"""
     application = Application.builder().token(TOKEN).build()
     
-    # Command handlers
+    # Register handlers
+    application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("connect", connect_command))
-    
-    # Message handler (all non-command messages)
     application.add_handler(MessageHandler(
         filters.TEXT | filters.PHOTO | filters.Document.ALL | filters.AUDIO | filters.VIDEO,
         handle_message
     ))
     
-    application.run_polling()
+    # Webhook configuration for Render
+    if WEBHOOK_URL:
+        application.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            url_path=TOKEN,
+            webhook_url=f"{WEBHOOK_URL}/{TOKEN}",
+            allowed_updates=Update.ALL_TYPES
+        )
+        logger.info("Running in WEBHOOK mode")
+    else:
+        application.run_polling()
+        logger.info("Running in POLLING mode")
 
 if __name__ == "__main__":
     main()
