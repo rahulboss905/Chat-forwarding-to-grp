@@ -116,16 +116,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("connect", connect_command))
 
-# CORRECTED FILTERS: Use proper filter instances
+# SIMPLIFIED AND CORRECT FILTER: Handle all non-command messages
 application.add_handler(MessageHandler(
-    filters.TEXT | 
-    filters.PHOTO | 
-    filters.Document.ALL() |  # Note: ALL is a method that returns a filter
-    filters.AUDIO | 
-    filters.VIDEO |
-    filters.Sticker.ALL |  # Correct filter instance
-    filters.VOICE |
-    filters.ANIMATION,
+    filters.ALL & ~filters.COMMAND,  # Handle all non-command messages
     handle_message
 ))
 
