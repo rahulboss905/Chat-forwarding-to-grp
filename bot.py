@@ -1,7 +1,6 @@
 # bot.py
 import os
 import logging
-from flask import Flask, request
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -14,6 +13,9 @@ from storage import save_connection, get_connection
 
 # Configuration
 TOKEN = os.getenv("TOKEN")
+PORT = int(os.getenv("PORT", 10000))
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+
 if not TOKEN:
     raise ValueError("Missing TOKEN environment variable")
 
@@ -24,16 +26,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Create Flask app
-app = Flask(__name__)
-
-# Create Telegram application
-application = Application.builder().token(TOKEN).build()
-
-# Command handlers
 async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /connect command - only in private chats"""
-    # Only allow in private chats
     if update.message.chat.type != "private":
         return
     
@@ -56,7 +50,6 @@ async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Forward messages to connected group - only in private chats"""
-    # Only handle messages in private chats
     if update.message.chat.type != "private":
         return
     
@@ -88,7 +81,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send welcome message - only in private chats"""
-    # Only respond in private chats
     if update.message.chat.type != "private":
         return
     
@@ -98,39 +90,30 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "⚠️ Note: I only respond to commands in private messages, not in groups."
     )
 
-# Register handlers
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("connect", connect_command))
-application.add_handler(MessageHandler(
-    filters.TEXT | filters.PHOTO | filters.Document.ALL | filters.AUDIO | filters.VIDEO,
-    handle_message
-))
+def main():
+    """Start the bot"""
+    application = Application.builder().token(TOKEN).build()
+    
+    # Register handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("connect", connect_command))
+    application.add_handler(MessageHandler(
+        filters.TEXT | filters.PHOTO | filters.Document.ALL | filters.AUDIO | filters.VIDEO,
+        handle_message
+    ))
+    
+    # Webhook configuration for Render
+    if WEBHOOK_URL:
+        application.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            webhook_url=f"{WEBHOOK_URL}/{TOKEN}",
+            allowed_updates=Update.ALL_TYPES
+        )
+        logger.info(f"Running in WEBHOOK mode at {WEBHOOK_URL}/{TOKEN}")
+    else:
+        application.run_polling()
+        logger.info("Running in POLLING mode")
 
-# Webhook route
-@app.post(f"/{TOKEN}")
-async def telegram_webhook():
-    """Handle incoming Telegram updates"""
-    json_data = await request.get_json()
-    update = Update.de_json(json_data, application.bot)
-    await application.process_update(update)
-    return {"status": "ok"}
-
-# Health check route
-@app.route("/")
-def health_check():
-    return "🤖 Bot is running! I only respond to private messages.", 200
-
-# Start Flask server
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 5000))
-    webhook_url = os.getenv("WEBHOOK_URL")
-    
-    if webhook_url:
-        # Set webhook on startup
-        async def set_webhook():
-            await application.bot.set_webhook(f"{webhook_url}/{TOKEN}")
-        
-        application.run(set_webhook())
-        logger.info(f"Webhook set to: {webhook_url}/{TOKEN}")
-    
-    app.run(host="0.0.0.0", port=port)
+    main()
