@@ -78,11 +78,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     try:
-        await context.bot.copy_message(
-            chat_id=group_id,
-            from_chat_id=update.message.chat_id,
-            message_id=update.message.message_id
-        )
+        # Handle stickers specifically
+        if update.message.sticker:
+            await context.bot.send_sticker(
+                chat_id=group_id,
+                sticker=update.message.sticker.file_id
+            )
+        # Handle all other media types
+        else:
+            await context.bot.copy_message(
+                chat_id=group_id,
+                from_chat_id=update.message.chat_id,
+                message_id=update.message.message_id
+            )
     except Exception as e:
         logger.error(f"Forwarding failed: {e}")
         await update.message.reply_text(
@@ -107,8 +115,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Register handlers
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("connect", connect_command))
+
+# Update MessageHandler to include stickers and all supported media types
 application.add_handler(MessageHandler(
-    filters.TEXT | filters.PHOTO | filters.Document.ALL | filters.AUDIO | filters.VIDEO,
+    filters.TEXT | 
+    filters.PHOTO | 
+    filters.Document.ALL | 
+    filters.AUDIO | 
+    filters.VIDEO |
+    filters.STICKER |
+    filters.VOICE |
+    filters.ANIMATION,
     handle_message
 ))
 
