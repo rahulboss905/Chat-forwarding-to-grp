@@ -14,7 +14,7 @@ from storage import save_connection, get_connection
 
 # Configuration
 TOKEN = os.getenv("TOKEN")
-OWNER_ID = os.getenv("OWNER_ID")  # Get owner ID from environment
+OWNER_ID = os.getenv("OWNER_ID")
 if not TOKEN:
     raise ValueError("Missing TOKEN environment variable")
 if not OWNER_ID:
@@ -49,12 +49,13 @@ def is_owner(user_id: int) -> bool:
 # Command handlers
 async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /connect command"""
+    # Ignore group messages completely
+    if update.message.chat.type != "private":
+        return
+    
     # Owner check
     if not is_owner(update.message.from_user.id):
         await update.message.reply_text("❌ You are not authorized to use this bot.")
-        return
-    
-    if update.message.chat.type != "private":
         return
     
     args = context.args
@@ -75,12 +76,13 @@ async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle incoming messages"""
+    # Ignore group messages completely
+    if update.message.chat.type != "private":
+        return
+    
     # Owner check
     if not is_owner(update.message.from_user.id):
         await update.message.reply_text("❌ You are not authorized to use this bot.")
-        return
-    
-    if update.message.chat.type != "private":
         return
     
     user_id = update.message.from_user.id
@@ -119,12 +121,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command"""
+    # Ignore group messages completely
+    if update.message.chat.type != "private":
+        return
+    
     # Owner check
     if not is_owner(update.message.from_user.id):
         await update.message.reply_text("❌ You are not authorized to use this bot.")
-        return
-    
-    if update.message.chat.type != "private":
         return
     
     await update.message.reply_text(
