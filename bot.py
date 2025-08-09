@@ -1,26 +1,23 @@
 # bot.py
 import os
 import logging
-import asyncio
+import threading
+from flask import Flask, request
 from telegram import Update
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
     filters,
-    ContextTypes
+    ContextTypes,
+    Dispatcher
 )
 from storage import save_connection, get_connection
 
 # Configuration
 TOKEN = os.getenv("TOKEN")
-PORT = int(os.getenv("PORT", 10000))
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-
 if not TOKEN:
     raise ValueError("Missing TOKEN environment variable")
-if not WEBHOOK_URL:
-    raise ValueError("Missing WEBHOOK_URL environment variable")
 
 # Enable logging
 logging.basicConfig(
@@ -29,6 +26,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Create Flask app
+app = Flask(__name__)
+
+# Initialize Telegram application
+application = Application.builder().token(TOKEN).build()
+dispatcher = application.dispatcher
+
+# Command handlers
 async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /connect command - only in private chats"""
     if update.message.chat.type != "private":
@@ -93,38 +98,29 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "⚠️ Note: I only respond to commands in private messages, not in groups."
     )
 
-async def set_webhook():
-    """Set up webhook on startup"""
-    await application.bot.set_webhook(f"{WEBHOOK_URL}/{TOKEN}")
-    logger.info(f"Webhook set to: {WEBHOOK_URL}/{TOKEN}")
+# Register handlers
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("connect", connect_command))
+application.add_handler(MessageHandler(
+    filters.TEXT | filters.PHOTO | filters.Document.ALL | filters.AUDIO | filters.VIDEO,
+    handle_message
+))
 
-def main():
-    """Start the bot"""
-    global application
-    application = Application.builder().token(TOKEN).build()
-    
-    # Register handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("connect", connect_command))
-    application.add_handler(MessageHandler(
-        filters.TEXT | filters.PHOTO | filters.Document.ALL | filters.AUDIO | filters.VIDEO,
-        handle_message
-    ))
-    
-    # Set up webhook
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(set_webhook())
-    
-    # Start web server
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        webhook_url=None,  # We already set it above
-        secret_token=None,
-        key=None,
-        cert=None,
-        drop_pending_updates=True
-    )
+# Start polling in a separate thread
+def start_polling():
+    application.run_polling()
 
+polling_thread = threading.Thread(target=start_polling)
+polling_thread.daemon = True
+polling_thread.start()
+
+# Health check route
+@app.route('/')
+def health_check():
+    return "🤖 Bot is running with polling! I only respond to private messages.", 200
+
+# Start Flask server
 if __name__ == "__main__":
-    main()
+    port = int(os.getenv("PORT", 5000))
+    logger.info(f"Starting bot with polling on port {port}")
+    app.run(host="0.0.0.0", port=port)
