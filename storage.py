@@ -1,3 +1,4 @@
+# storage.py
 import json
 import os
 
@@ -6,8 +7,11 @@ STORAGE_FILE = "connections.json"
 def load_connections():
     if not os.path.exists(STORAGE_FILE):
         return {}
-    with open(STORAGE_FILE, 'r') as f:
-        return json.load(f)
+    try:
+        with open(STORAGE_FILE, 'r') as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        return {}
 
 def save_connection(user_id, group_id):
     connections = load_connections()
