@@ -10,7 +10,7 @@ def load_connections():
     try:
         with open(STORAGE_FILE, 'r') as f:
             return json.load(f)
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, FileNotFoundError):
         return {}
 
 def save_connection(user_id, group_id):
