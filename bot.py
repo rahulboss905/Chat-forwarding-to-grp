@@ -14,8 +14,11 @@ from storage import save_connection, get_connection
 
 # Configuration
 TOKEN = os.getenv("TOKEN")
+OWNER_ID = os.getenv("OWNER_ID")  # Get owner ID from environment
 if not TOKEN:
     raise ValueError("Missing TOKEN environment variable")
+if not OWNER_ID:
+    raise ValueError("Missing OWNER_ID environment variable")
 
 # Enable logging
 logging.basicConfig(
@@ -29,7 +32,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def health_check():
-    return "🤖 Bot is running! I only respond to private messages.", 200
+    return "🤖 Bot is running! Only the owner can use me.", 200
 
 def run_flask():
     port = int(os.getenv("PORT", 8000))
@@ -39,13 +42,21 @@ def run_flask():
 # Initialize Telegram application
 application = Application.builder().token(TOKEN).build()
 
+def is_owner(user_id: int) -> bool:
+    """Check if user is the owner"""
+    return str(user_id) == OWNER_ID
+
 # Command handlers
 async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /connect command"""
+    # Owner check
+    if not is_owner(update.message.from_user.id):
+        await update.message.reply_text("❌ You are not authorized to use this bot.")
+        return
+    
     if update.message.chat.type != "private":
         return
     
-    user_id = update.message.from_user.id
     args = context.args
     
     if not args:
@@ -54,7 +65,7 @@ async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         group_id = int(args[0])
-        save_connection(user_id, group_id)
+        save_connection(update.message.from_user.id, group_id)
         await update.message.reply_text(
             f"✅ Connected to group {group_id}!\n"
             "Send any message to me (in private) and I'll forward it there."
@@ -64,6 +75,11 @@ async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle incoming messages"""
+    # Owner check
+    if not is_owner(update.message.from_user.id):
+        await update.message.reply_text("❌ You are not authorized to use this bot.")
+        return
+    
     if update.message.chat.type != "private":
         return
     
@@ -103,28 +119,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command"""
+    # Owner check
+    if not is_owner(update.message.from_user.id):
+        await update.message.reply_text("❌ You are not authorized to use this bot.")
+        return
+    
     if update.message.chat.type != "private":
         return
     
     await update.message.reply_text(
-        "🤖 Forward Bot is running!\n"
-        "Use /connect <group_id> in private chat to start forwarding messages\n\n"
-        "⚠️ Note: I only respond to commands in private messages, not in groups."
+        "🤖 Owner-Only Forward Bot is running!\n"
+        "Use /connect <group_id> to start forwarding messages\n\n"
+        "⚠️ Note: Only you (the owner) can use this bot."
     )
 
 # Register handlers
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("connect", connect_command))
 
-# SIMPLIFIED AND CORRECT FILTER: Handle all non-command messages
+# Handle all non-command messages
 application.add_handler(MessageHandler(
-    filters.ALL & ~filters.COMMAND,  # Handle all non-command messages
+    filters.ALL & ~filters.COMMAND,
     handle_message
 ))
 
 def start_bot():
     """Start Telegram bot in polling mode"""
     logger.info("Starting Telegram bot in polling mode...")
+    logger.info(f"Owner ID: {OWNER_ID}")
     application.run_polling()
 
 if __name__ == "__main__":
