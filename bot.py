@@ -116,14 +116,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("connect", connect_command))
 
-# CORRECTED FILTER FOR STICKERS: Use filters.Sticker instead of filters.STICKER
+# CORRECTED FILTERS: Use proper filter instances
 application.add_handler(MessageHandler(
     filters.TEXT | 
     filters.PHOTO | 
-    filters.Document.ALL | 
+    filters.Document.ALL() |  # Note: ALL is a method that returns a filter
     filters.AUDIO | 
     filters.VIDEO |
-    filters.Sticker |  # Corrected filter name
+    filters.Sticker.ALL |  # Correct filter instance
     filters.VOICE |
     filters.ANIMATION,
     handle_message
