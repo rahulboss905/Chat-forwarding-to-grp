@@ -14,7 +14,7 @@ from storage import save_connection, get_connection
 
 # Configuration
 TOKEN = os.getenv("TOKEN")
-OWNER_ID = os.getenv("OWNER_ID", 7456681709)
+OWNER_ID = os.getenv("OWNER_ID", "7456681709")
 if not TOKEN:
     raise ValueError("Missing TOKEN environment variable")
 if not OWNER_ID:
